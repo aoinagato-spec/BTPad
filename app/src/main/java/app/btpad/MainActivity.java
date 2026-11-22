@@ -58,7 +58,7 @@ public class MainActivity extends Activity
     private final TextView[] dragViews = new TextView[2];
     private final TextView[] modeViews = new TextView[2];
     private View top;
-    private LinearLayout fullControls, compactRow;
+    private LinearLayout fullControls, compactRow, numRow;
     private boolean compact;
 
     @Override
@@ -240,6 +240,7 @@ public class MainActivity extends Activity
 
         LinearLayout mouse = new LinearLayout(this);
         mouse.setOrientation(LinearLayout.HORIZONTAL);
+        mouse.setBaselineAligned(false); // 2行の文字のボタンが下にずれないようにする
         TextView kb = keyButton("⌨", this::toggleKeyboard);
         kb.setTextColor(C_ACCENT);
         kb.setTextSize(22);
@@ -285,9 +286,26 @@ public class MainActivity extends Activity
         fullControls.addView(scrollable(keyRow(row2)));
         root.addView(fullControls);
 
+        // キーボードを出しているときの数字キー（PC側の変換候補を番号で選ぶため）
+        numRow = new LinearLayout(this);
+        numRow.setOrientation(LinearLayout.HORIZONTAL);
+        for (int n = 1; n <= 9; n++) {
+            final int usage = 0x1E + (n - 1);
+            TextView k = keyButton(String.valueOf(n), () -> sendKey(0, usage));
+            k.setMinWidth(0);
+            k.setPadding(0, 0, 0, 0);
+            k.setTextSize(17);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, px(46), 1);
+            lp.setMargins(px(2), px(2), px(2), px(2));
+            numRow.addView(k, lp);
+        }
+        numRow.setVisibility(View.GONE);
+        root.addView(numRow);
+
         // キーボードを出しているときの操作部（ドラッグ固定・入力モード・閉じる だけ）
         compactRow = new LinearLayout(this);
         compactRow.setOrientation(LinearLayout.HORIZONTAL);
+        compactRow.setBaselineAligned(false);
         dragViews[1] = keyButton("", () -> setDragLock(!dragLock));
         modeViews[1] = keyButton("", () -> setKanaMode(!keyIn.isKanaMode()));
         TextView close = keyButton("⌨ 閉じる", this::toggleKeyboard);
@@ -466,6 +484,7 @@ public class MainActivity extends Activity
         top.setVisibility(on ? View.GONE : View.VISIBLE);
         fullControls.setVisibility(on ? View.GONE : View.VISIBLE);
         compactRow.setVisibility(on ? View.VISIBLE : View.GONE);
+        numRow.setVisibility(on ? View.VISIBLE : View.GONE);
     }
 
     private static int toProgress(float speed) {
