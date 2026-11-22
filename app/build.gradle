@@ -1,0 +1,43 @@
+plugins {
+    id "com.android.application"
+}
+
+android {
+    namespace "app.btpad"
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "app.btpad"
+        minSdk 28
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    // 毎回同じ鍵で署名して、アンインストールせずに上書き更新できるようにする
+    signingConfigs {
+        fixed {
+            storeFile file("btpad.keystore")
+            storePassword "btpadkey"
+            keyAlias "btpad"
+            keyPassword "btpadkey"
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.fixed
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    lint {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+}
