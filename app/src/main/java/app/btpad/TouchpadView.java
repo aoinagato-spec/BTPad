@@ -32,6 +32,7 @@ final class TouchpadView extends View {
     private final float slop;
     private final Paint bg = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint hint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint edge = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF rect = new RectF();
 
     private Sink sink;
@@ -44,13 +45,14 @@ final class TouchpadView extends View {
     private long downTime, lastMoveTime, lastTapUp;
     private float lastTapX, lastTapY;
     private int maxPointers;
-    private boolean moved, dragging;
+    private boolean moved, dragging, edgeScroll;
 
     TouchpadView(Context c) {
         super(c);
         density = getResources().getDisplayMetrics().density;
         slop = 4f * density;
         bg.setColor(0xFF1B2128);
+        edge.setColor(0xFF242C36);
         hint.setColor(0x55E6EDF3);
         hint.setTextAlign(Paint.Align.CENTER);
         hint.setTextSize(13f * density);
@@ -61,15 +63,32 @@ final class TouchpadView extends View {
         sink = s;
     }
 
+    /** 右端のスクロール帯の幅（px）。 */
+    private float edgeWidth() {
+        return Math.min(52f * density, getWidth() * 0.22f);
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
         float r = 14f * density;
         rect.set(0, 0, getWidth(), getHeight());
         canvas.drawRoundRect(rect, r, r, bg);
-        float cx = getWidth() / 2f, cy = getHeight() / 2f, lh = 20f * density;
-        canvas.drawText("タップ＝左クリック　2本指タップ＝右クリック", cx, cy - lh * 0.5f, hint);
-        canvas.drawText("2本指でなぞる＝スクロール", cx, cy + lh * 0.5f, hint);
-        canvas.drawText("タップ→すぐ押さえてなぞる＝ドラッグ", cx, cy + lh * 1.5f, hint);
+
+        // 右端のスクロール帯
+        float ew = edgeWidth();
+        rect.set(getWidth() - ew, 0, getWidth(), getHeight());
+        canvas.drawRoundRect(rect, r, r, edge);
+        float ex = getWidth() - ew / 2f;
+        float ey = getHeight() / 2f;
+        canvas.drawText("▲", ex, ey - 22f * density, hint);
+        canvas.drawText("↕", ex, ey + 5f * density, hint);
+        canvas.drawText("▼", ex, ey + 32f * density, hint);
+
+        float cx = (getWidth() - ew) / 2f, cy = getHeight() / 2f, lh = 20f * density;
+        canvas.drawText("タップ＝左クリック　2本指タップ＝右クリック", cx, cy - lh, hint);
+        canvas.drawText("右端の帯をなぞる＝スクロール", cx, cy, hint);
+        canvas.drawText("2本指でなぞってもスクロール", cx, cy + lh, hint);
+        canvas.drawText("タップ→すぐ押さえてなぞる＝ドラッグ", cx, cy + lh * 2, hint);
     }
 
     @Override
@@ -83,6 +102,7 @@ final class TouchpadView extends View {
                 fracX = fracY = fracWheel = fracPan = 0;
                 moved = false;
                 maxPointers = 1;
+                edgeScroll = lastX >= getWidth() - edgeWidth();
                 downTime = lastMoveTime = e.getEventTime();
                 float d = (float) Math.hypot(lastX - lastTapX, lastY - lastTapY);
                 if (downTime - lastTapUp < DRAG_WINDOW_MS && d < 48f * density) {
@@ -126,7 +146,10 @@ final class TouchpadView extends View {
                     return true; // しきい値までの動きは捨てる（タップのブレ対策）
                 }
                 if (n == 1) {
-                    if (maxPointers == 1) movePointer(dx, dy, dt);
+                    if (maxPointers == 1) {
+                        if (edgeScroll && !dragging) scrollBy(0, dy); // 右端の帯は1本指でスクロール
+                        else movePointer(dx, dy, dt);
+                    }
                 } else {
                     scrollBy(dx, dy);
                 }

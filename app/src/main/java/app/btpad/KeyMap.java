@@ -102,6 +102,54 @@ final class KeyMap {
         }
     }
 
+    private static final String[] HIRA = new String[0x97];
+
+    static {
+        String[][] t = {
+                {"あ", "a"}, {"い", "i"}, {"う", "u"}, {"え", "e"}, {"お", "o"},
+                {"か", "ka"}, {"き", "ki"}, {"く", "ku"}, {"け", "ke"}, {"こ", "ko"},
+                {"さ", "sa"}, {"し", "si"}, {"す", "su"}, {"せ", "se"}, {"そ", "so"},
+                {"た", "ta"}, {"ち", "ti"}, {"つ", "tu"}, {"て", "te"}, {"と", "to"},
+                {"な", "na"}, {"に", "ni"}, {"ぬ", "nu"}, {"ね", "ne"}, {"の", "no"},
+                {"は", "ha"}, {"ひ", "hi"}, {"ふ", "hu"}, {"へ", "he"}, {"ほ", "ho"},
+                {"ま", "ma"}, {"み", "mi"}, {"む", "mu"}, {"め", "me"}, {"も", "mo"},
+                {"や", "ya"}, {"ゆ", "yu"}, {"よ", "yo"},
+                {"ら", "ra"}, {"り", "ri"}, {"る", "ru"}, {"れ", "re"}, {"ろ", "ro"},
+                {"わ", "wa"}, {"を", "wo"}, {"ん", "nn"},
+                {"が", "ga"}, {"ぎ", "gi"}, {"ぐ", "gu"}, {"げ", "ge"}, {"ご", "go"},
+                {"ざ", "za"}, {"じ", "zi"}, {"ず", "zu"}, {"ぜ", "ze"}, {"ぞ", "zo"},
+                {"だ", "da"}, {"ぢ", "di"}, {"づ", "du"}, {"で", "de"}, {"ど", "do"},
+                {"ば", "ba"}, {"び", "bi"}, {"ぶ", "bu"}, {"べ", "be"}, {"ぼ", "bo"},
+                {"ぱ", "pa"}, {"ぴ", "pi"}, {"ぷ", "pu"}, {"ぺ", "pe"}, {"ぽ", "po"},
+                {"ぁ", "xa"}, {"ぃ", "xi"}, {"ぅ", "xu"}, {"ぇ", "xe"}, {"ぉ", "xo"},
+                {"っ", "xtu"}, {"ゃ", "xya"}, {"ゅ", "xyu"}, {"ょ", "xyo"}, {"ゎ", "xwa"},
+                {"ゔ", "vu"},
+        };
+        for (String[] e : t) HIRA[e[0].charAt(0) - 0x3000] = e[1];
+    }
+
+    /**
+     * かな・全角記号を、PC側の日本語入力（ローマ字入力）で同じ文字になるキー列に変換する。
+     * 対象外の文字は null。
+     */
+    static String kanaToKeys(char c) {
+        if (c >= 0x30A1 && c <= 0x30F6) c = (char) (c - 0x60); // カタカナ→ひらがな
+        if (c >= 0x3000 && c < 0x3000 + HIRA.length && HIRA[c - 0x3000] != null) {
+            return HIRA[c - 0x3000];
+        }
+        if (c >= 0xFF01 && c <= 0xFF5E) return String.valueOf((char) (c - 0xFEE0)); // 全角英数記号
+        switch (c) {
+            case '、': return ",";
+            case '。': return ".";
+            case 'ー': return "-";
+            case '「': return "[";
+            case '」': return "]";
+            case '・': return "/";
+            case '〜': return "~";
+            default: return null;
+        }
+    }
+
     /** 文字にならないキー（矢印やEnterなど）。該当なしは 0。 */
     static int fromKeyCode(int keyCode) {
         switch (keyCode) {

@@ -55,7 +55,10 @@ public class MainActivity extends Activity
     private final TextView[] modViews = new TextView[4];
     private long lastHintAt;
     private boolean dragLock;
-    private TextView dragView;
+    private final TextView[] dragViews = new TextView[2];
+    private final TextView[] modeViews = new TextView[2];
+    private View top, fullControls, compactRow;
+    private boolean compact;
 
     @Override
     protected void onCreate(Bundle b) {
@@ -202,6 +205,7 @@ public class MainActivity extends Activity
 
         // 上段: 接続状態と設定
         LinearLayout top = new LinearLayout(this);
+        this.top = top;
         top.setOrientation(LinearLayout.HORIZONTAL);
         top.setGravity(Gravity.CENTER_VERTICAL);
         status = label("", 14);
@@ -229,15 +233,17 @@ public class MainActivity extends Activity
         plp.setMargins(px(3), px(3), px(3), px(3));
         root.addView(pad, plp);
 
-        // マウスボタン
+        // キーボードを出していないときの操作部（マウスボタン＋特殊キー）
+        fullControls = new LinearLayout(this);
+        fullControls.setOrientation(LinearLayout.VERTICAL);
+
         LinearLayout mouse = new LinearLayout(this);
         mouse.setOrientation(LinearLayout.HORIZONTAL);
         TextView kb = keyButton("⌨", this::toggleKeyboard);
         kb.setTextColor(C_ACCENT);
         kb.setTextSize(22);
-        dragView = keyButton("ドラッグ\n固定", () -> setDragLock(!dragLock));
-        dragView.setTextSize(13);
-        View[] mv = {mouseButton("左クリック", HidController.BTN_LEFT), dragView, kb,
+        dragViews[0] = keyButton("", () -> setDragLock(!dragLock));
+        View[] mv = {mouseButton("左クリック", HidController.BTN_LEFT), dragViews[0], kb,
                 mouseButton("右クリック", HidController.BTN_RIGHT)};
         float[] weights = {3, 2, 1.5f, 3};
         for (int i = 0; i < mv.length; i++) {
@@ -245,18 +251,20 @@ public class MainActivity extends Activity
             lp.setMargins(px(3), px(3), px(3), px(3));
             mouse.addView(mv[i], lp);
         }
-        root.addView(mouse);
+        fullControls.addView(mouse);
 
-        // 特殊キー
-        root.addView(scrollable(keyRow(
-                keyButton("Esc", () -> sendKey(0, KeyMap.ESC)),
-                keyButton("Tab", () -> sendKey(0, KeyMap.TAB)),
+        modeViews[0] = keyButton("", () -> setKanaMode(!keyIn.isKanaMode()));
+        fullControls.addView(scrollable(keyRow(
+                modeViews[0],
+                keyButton("変換/空白", () -> sendKey(0, KeyMap.SPACE)),
+                keyButton("確定/Enter", () -> sendKey(0, KeyMap.ENTER)),
+                keyButton("BS", () -> sendKey(0, KeyMap.BACKSPACE)),
                 keyButton("←", () -> sendKey(0, KeyMap.LEFT)),
                 keyButton("↓", () -> sendKey(0, KeyMap.DOWN)),
                 keyButton("↑", () -> sendKey(0, KeyMap.UP)),
                 keyButton("→", () -> sendKey(0, KeyMap.RIGHT)),
-                keyButton("Enter", () -> sendKey(0, KeyMap.ENTER)),
-                keyButton("BS", () -> sendKey(0, KeyMap.BACKSPACE)),
+                keyButton("Esc", () -> sendKey(0, KeyMap.ESC)),
+                keyButton("Tab", () -> sendKey(0, KeyMap.TAB)),
                 keyButton("Del", () -> sendKey(0, KeyMap.DELETE)),
                 keyButton("Home", () -> sendKey(0, KeyMap.HOME)),
                 keyButton("End", () -> sendKey(0, KeyMap.END)),
@@ -273,12 +281,40 @@ public class MainActivity extends Activity
         row2[4] = keyButton("半/全", () -> sendKey(0, KeyMap.HANKAKU));
         row2[5] = keyButton("英数", () -> sendKey(0, KeyMap.EISU));
         row2[6] = keyButton("かな", () -> sendKey(0, KeyMap.KANA));
-        root.addView(scrollable(keyRow(row2)));
+        fullControls.addView(scrollable(keyRow(row2)));
+        root.addView(fullControls);
+
+        // キーボードを出しているときの操作部（ドラッグ固定・入力モード・閉じる だけ）
+        compactRow = new LinearLayout(this);
+        compactRow.setOrientation(LinearLayout.HORIZONTAL);
+        dragViews[1] = keyButton("", () -> setDragLock(!dragLock));
+        modeViews[1] = keyButton("", () -> setKanaMode(!keyIn.isKanaMode()));
+        TextView close = keyButton("⌨ 閉じる", this::toggleKeyboard);
+        close.setTextColor(C_ACCENT);
+        View[] cv = {dragViews[1], modeViews[1], close};
+        float[] cw = {2, 1.4f, 1.4f};
+        for (int i = 0; i < cv.length; i++) {
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, px(50), cw[i]);
+            lp.setMargins(px(3), px(3), px(3), px(3));
+            compactRow.addView(cv[i], lp);
+        }
+        compactRow.setVisibility(View.GONE);
+        root.addView(compactRow);
+
+        // キーボードの表示／非表示に合わせて、操作部を切り替える
+        if (Build.VERSION.SDK_INT >= 30) {
+            root.setOnApplyWindowInsetsListener((v, insets) -> {
+                setCompact(insets.isVisible(WindowInsets.Type.ime()));
+                return v.onApplyWindowInsets(insets);
+            });
+        }
 
         // ソフトキーボードの入力を受ける見えない欄
         keyIn = new KeyInputView(this);
         keyIn.setSink(this);
         root.addView(keyIn, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 1));
+        refreshModeView();
+        refreshDragViews();
         return root;
     }
 
@@ -386,6 +422,48 @@ public class MainActivity extends Activity
         pad.pointerSpeed = prefs.getFloat("pointerSpeed", 1f);
         pad.scrollSpeed = prefs.getFloat("scrollSpeed", 1f);
         pad.reverseScroll = prefs.getBoolean("reverseScroll", false);
+        keyIn.setKanaMode(prefs.getBoolean("kanaMode", false));
+        refreshModeView();
+    }
+
+    // ---------------------------------------------------------------- 入力モード
+
+    private void setKanaMode(boolean on) {
+        keyIn.setKanaMode(on);
+        prefs.edit().putBoolean("kanaMode", on).apply();
+        refreshModeView();
+        if (on) {
+            new AlertDialog.Builder(this)
+                    .setTitle("かな入力モード")
+                    .setMessage("スマホのキーボードを日本語（フリック）にして、ひらがなで打ってください。\n\n"
+                            + "・PC側は日本語入力（ローマ字入力）にしておきます。英字が出るときは「半/全」（Windows）か「かな」（Mac）を押します。\n"
+                            + "・漢字にするときは「変換/空白」、決めるときは「確定/Enter」を押します。変換候補はPCの画面に出ます。\n"
+                            + "・スマホのキーボードの予測候補で漢字を選んでも送れません。")
+                    .setPositiveButton("OK", null)
+                    .show();
+        }
+    }
+
+    private void refreshModeView() {
+        if (keyIn == null) return;
+        boolean kana = keyIn.isKanaMode();
+        for (TextView v : modeViews) {
+            if (v == null) continue;
+            v.setText(kana ? "入力: あ" : "入力: A");
+            v.setBackground(keyBg(kana ? C_ACCENT : C_KEY, kana ? C_ACCENT : C_KEY_DOWN, 0));
+            v.setTextColor(kana ? 0xFF0B1220 : C_TEXT);
+            v.setTypeface(Typeface.DEFAULT_BOLD);
+            v.setPadding(px(12), 0, px(12), 0);
+        }
+    }
+
+    /** キーボード表示中は、タッチパッドと最小限のボタンだけにする。 */
+    private void setCompact(boolean on) {
+        if (on == compact || fullControls == null) return;
+        compact = on;
+        top.setVisibility(on ? View.GONE : View.VISIBLE);
+        fullControls.setVisibility(on ? View.GONE : View.VISIBLE);
+        compactRow.setVisibility(on ? View.VISIBLE : View.GONE);
     }
 
     private static int toProgress(float speed) {
@@ -523,14 +601,27 @@ public class MainActivity extends Activity
     public void typeChar(char c) {
         int m = KeyMap.fromChar(c, jis);
         if (m == 0) {
-            long now = System.currentTimeMillis();
-            if (now - lastHintAt > 4000) {
-                lastHintAt = now;
-                toast("送れるのは英数字と記号だけです。スマホのキーボードを英字にしてください");
-            }
+            onUnsupportedText(keyIn.isKanaMode());
             return;
         }
         sendKey(m >> 8, m & 0xFF);
+    }
+
+    @Override
+    public boolean canType(char c) {
+        return KeyMap.fromChar(c, jis) != 0;
+    }
+
+    @Override
+    public void onUnsupportedText(boolean kanaMode) {
+        long now = System.currentTimeMillis();
+        if (now - lastHintAt < 4000) return;
+        lastHintAt = now;
+        if (kanaMode) {
+            toast("漢字はスマホ側では送れません。ひらがなのまま「変換/空白」でPC側で変換してください");
+        } else {
+            toast("英字モードです。日本語を打つときは「入力: A」を押して「あ」にしてください");
+        }
     }
 
     @Override
@@ -569,15 +660,23 @@ public class MainActivity extends Activity
     private void setDragLock(boolean on) {
         dragLock = on;
         hid.setButton(HidController.BTN_LEFT, on);
-        if (on) {
-            dragView.setBackground(keyBg(C_ACCENT, C_ACCENT, 0));
-            dragView.setTextColor(0xFF0B1220);
-            dragView.setText("固定中\nタップで解除");
-        } else {
-            dragView.setBackground(keyBg(C_KEY, C_KEY_DOWN, 0));
-            dragView.setTextColor(C_TEXT);
-            dragView.setText("ドラッグ\n固定");
+        refreshDragViews();
+    }
+
+    private void refreshDragViews() {
+        for (TextView v : dragViews) {
+            if (v == null) continue;
+            if (dragLock) {
+                v.setBackground(keyBg(C_ACCENT, C_ACCENT, 0));
+                v.setTextColor(0xFF0B1220);
+                v.setText("固定中\nタップで解除");
+            } else {
+                v.setBackground(keyBg(C_KEY, C_KEY_DOWN, 0));
+                v.setTextColor(C_TEXT);
+                v.setText("ドラッグ\n固定");
+            }
+            v.setTextSize(13);
+            v.setPadding(px(6), 0, px(6), 0);
         }
-        dragView.setPadding(px(6), 0, px(6), 0);
     }
 }
