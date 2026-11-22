@@ -57,7 +57,8 @@ public class MainActivity extends Activity
     private boolean dragLock;
     private final TextView[] dragViews = new TextView[2];
     private final TextView[] modeViews = new TextView[2];
-    private View top, fullControls, compactRow;
+    private View top;
+    private LinearLayout fullControls, compactRow;
     private boolean compact;
 
     @Override
