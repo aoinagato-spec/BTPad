@@ -286,12 +286,14 @@ public class MainActivity extends Activity
         fullControls.addView(scrollable(keyRow(row2)));
         root.addView(fullControls);
 
-        // キーボードを出しているときの数字キー（PC側の変換候補を番号で選ぶため）
+        // キーボードを出しているときの変換用キー（PC側の変換候補を選ぶため）
         numRow = new LinearLayout(this);
         numRow.setOrientation(LinearLayout.HORIZONTAL);
-        for (int n = 1; n <= 9; n++) {
-            final int usage = 0x1E + (n - 1);
-            TextView k = keyButton(String.valueOf(n), () -> sendKey(0, usage));
+        String[] names = {"Tab", "←", "↑", "↓", "→", "Esc"};
+        int[] usages = {KeyMap.TAB, KeyMap.LEFT, KeyMap.UP, KeyMap.DOWN, KeyMap.RIGHT, KeyMap.ESC};
+        for (int n = 0; n < names.length; n++) {
+            final int usage = usages[n];
+            TextView k = keyButton(names[n], () -> sendKey(0, usage));
             k.setMinWidth(0);
             k.setPadding(0, 0, 0, 0);
             k.setTextSize(17);
